@@ -1,0 +1,16 @@
+# venvs (st-worker lives in-tree but is never committed)
+.venv*/
+venv/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# archify work folders (deliverables in docs/architecture/ are kept)
+.archify/
+
+# local secrets
+CLAUDE.local.md
+.env
+
+.DS_Store
