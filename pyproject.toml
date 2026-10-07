@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sem1"
+version = "0.1.0"
+description = "Semantic embeddings lane of the sys1 house pattern — embeddings propose, sys1/sdm1 dispose"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "adelvillar1" }]
+# Runtime deps: NONE (stdlib-only core), same covenant as sys1/sdm1.
+dependencies = []
+
+[project.optional-dependencies]
+# For the st-worker VENV only (the worker runs sentence-transformers inside
+# .venv-st; the sem1 host process itself never imports these):
+st = ["sentence-transformers>=5", "torchvision"]
+
+[project.scripts]
+sem1 = "sem1.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
