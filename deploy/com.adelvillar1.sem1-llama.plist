@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.adelvillar1.sem1-llama</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/alejandrodelvillar/.unsloth/llama.cpp/build/bin/llama-server</string>
+        <string>-m</string>
+        <string>/Users/alejandrodelvillar/.cache/huggingface/hub/models--unsloth--embeddinggemma-2-GGUF/snapshots/031f0d4b35536f69ab3509d4893c923264fcf253/embeddinggemma-2-BF16.gguf</string>
+        <string>--embedding</string>
+        <string>--port</string>
+        <string>8901</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--parallel</string>
+        <string>1</string>
+        <string>--flash-attn</string>
+        <string>on</string>
+        <string>-c</string>
+        <string>16384</string>
+        <string>--batch-size</string>
+        <string>4096</string>
+        <string>--ubatch-size</string>
+        <string>4096</string>
+    </array>
+
+    <!-- model auto-loads at login after a reboot; restart on crash -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/alejandrodelvillar/.local/share/sem1/llama-server.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/alejandrodelvillar/.local/share/sem1/llama-server.log</string>
+</dict>
+</plist>
