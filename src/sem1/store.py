@@ -36,19 +36,25 @@ class VectorStore:
     def _dir(self, model: str) -> Path:
         return self.root / _slug(model)
 
-    def rebuild(self, model: str, dims: int, provider: str, entries: list[tuple[str, str, list[float]]]) -> dict:
-        """entries: [(key, sha256, vector)]. Replaces the model's store wholesale."""
+    def rebuild(self, model: str, dims: int, provider: str,
+                entries: list[tuple[str, str, list[float]]],
+                meta: list[dict] | None = None) -> dict:
+        """entries: [(key, sha256, vector)], optional parallel `meta` dicts
+        (op, ts, ...) stored inside manifest entries. Replaces the model's
+        store wholesale."""
         if dims <= 0:
             raise Sem1Error(f"rebuild: bad dims {dims}")
         seen: set[str] = set()
         clean_entries: list[tuple[str, str, list[float]]] = []
-        for key, sha, vec in entries:
+        clean_meta: list[dict] = []
+        for i, (key, sha, vec) in enumerate(entries):
             if key in seen:
                 continue
             if len(vec) != dims:
                 raise Sem1Error(f"rebuild: entry {key} has {len(vec)} dims, expected {dims}")
             seen.add(key)
             clean_entries.append((key, sha, vec))
+            clean_meta.append(dict(meta[i]) if meta else {})
 
         d = self._dir(model)
         d.mkdir(parents=True, exist_ok=True)
@@ -66,7 +72,8 @@ class VectorStore:
             "dims": dims,
             "provider": provider,
             "count": len(clean_entries),
-            "entries": [{"key": k, "sha256": s} for k, s, _v in clean_entries],
+            "entries": [{"key": k, "sha256": s, **m}
+                        for (k, s, _v), m in zip(clean_entries, clean_meta)],
         }
         mpath = d / "manifest.json"
         mtmp = mpath.with_suffix(".tmp")
