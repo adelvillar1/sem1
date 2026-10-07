@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "sem1 \u2014 semantic embeddings lane",
+    "subtitle": "embeddings propose, sys1/sdm1 dispose",
+    "output": ".archify/arch-sem1-20261007-194500/sem1.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/adelvillar1/sem1",
+      "provider": "github",
+      "revision": "7f7598958241d8c8de65272231542312efa15eb9"
+    }
+  },
+  "components": [
+    {
+      "id": "devdec",
+      "type": "external",
+      "label": "dev-decisions",
+      "sublabel": "_bootstrap_sem1",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "src/sem1/__init__.py",
+          "line": 41,
+          "end_line": 47,
+          "label": "embed() entry"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "sem1.embed()",
+      "sublabel": "normalize items",
+      "pos": [
+        270,
+        300
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "src/sem1/__init__.py",
+          "line": 41,
+          "end_line": 47,
+          "label": "gate before I/O"
+        }
+      ]
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "Capability gate",
+      "sublabel": "registry.enforce()",
+      "pos": [
+        500,
+        300
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "tag": "raises, never answers",
+      "sources": [
+        {
+          "path": "src/sem1/registry.py",
+          "line": 39,
+          "end_line": 54,
+          "label": "ProviderCapabilityError"
+        }
+      ]
+    },
+    {
+      "id": "http",
+      "type": "backend",
+      "label": "llama-server provider",
+      "sublabel": "text-only declared",
+      "pos": [
+        730,
+        300
+      ],
+      "size": [
+        160,
+        60
+      ],
+      "sources": [
+        {
+          "path": "src/sem1/providers/http_llama.py",
+          "line": 14,
+          "end_line": 17,
+          "label": "text-only wire"
+        }
+      ]
+    },
+    {
+      "id": "native",
+      "type": "cloud",
+      "label": "native llama-server",
+      "sublabel": "127.0.0.1:8901",
+      "pos": [
+        970,
+        300
+      ],
+      "size": [
+        160,
+        60
+      ],
+      "tag": "LaunchAgent",
+      "sources": [
+        {
+          "path": "deploy/com.adelvillar1.sem1-llama.plist",
+          "line": 6,
+          "end_line": 25,
+          "label": "RunAtLoad+KeepAlive"
+        }
+      ]
+    },
+    {
+      "id": "stw",
+      "type": "backend",
+      "label": "st-worker provider",
+      "sublabel": "venv subprocess",
+      "pos": [
+        730,
+        470
+      ],
+      "size": [
+        160,
+        60
+      ],
+      "sources": [
+        {
+          "path": "src/sem1/providers/st_worker.py",
+          "line": 38,
+          "end_line": 56,
+          "label": "one-shot worker"
+        }
+      ]
+    },
+    {
+      "id": "stvenv",
+      "type": "cloud",
+      "label": ".venv-st worker",
+      "sublabel": "sentence-transformers",
+      "pos": [
+        970,
+        470
+      ],
+      "size": [
+        160,
+        60
+      ],
+      "tag": "text + images",
+      "sources": [
+        {
+          "path": "src/sem1/providers/worker_st.py",
+          "line": 36,
+          "end_line": 44,
+          "label": "interleaved format"
+        }
+      ]
+    },
+    {
+      "id": "vstore",
+      "type": "database",
+      "label": "Vector store",
+      "sublabel": "float32 + manifest",
+      "pos": [
+        270,
+        470
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "src/sem1/store.py",
+          "line": 26,
+          "end_line": 33,
+          "label": "idempotent rebuild"
+        }
+      ]
+    },
+    {
+      "id": "tel",
+      "type": "database",
+      "label": "Telemetry",
+      "sublabel": "redacted JSONL",
+      "pos": [
+        500,
+        470
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "src/sem1/telemetry.py",
+          "line": 20,
+          "end_line": 24,
+          "label": "FORBIDDEN keys"
+        }
+      ]
+    },
+    {
+      "id": "probe",
+      "type": "security",
+      "label": "Mirror battery",
+      "sublabel": "opt-in, live",
+      "pos": [
+        500,
+        140
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "src/sem1/probe.py",
+          "line": 21,
+          "end_line": 30,
+          "label": "verifies declarations"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "sem1 library (stdlib-only core)",
+      "wraps": [
+        "api",
+        "gate",
+        "http",
+        "stw",
+        "vstore",
+        "tel",
+        "probe"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": "devdec",
+      "to": "api",
+      "label": "embed",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c2",
+      "from": "api",
+      "to": "gate",
+      "label": "modality check"
+    },
+    {
+      "id": "c3",
+      "from": "gate",
+      "to": "http",
+      "label": "text"
+    },
+    {
+      "id": "c4",
+      "from": "gate",
+      "to": "stw",
+      "label": "text+image",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c5",
+      "from": "http",
+      "to": "native",
+      "label": "HTTP"
+    },
+    {
+      "id": "c6",
+      "from": "stw",
+      "to": "stvenv",
+      "label": "JSON stdin"
+    },
+    {
+      "id": "c7",
+      "from": "api",
+      "to": "vstore",
+      "label": "store I/O",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c8",
+      "from": "http",
+      "to": "tel",
+      "label": "rows",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c9",
+      "from": "stw",
+      "to": "tel",
+      "label": "rows",
+      "variant": "dashed",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "c10",
+      "from": "probe",
+      "to": "stw",
+      "label": "battery",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Design driver",
+      "items": [
+        "Servers once answered image requests with confident text-of-base64 vectors",
+        "The gate refuses unproven modalities before any I/O \u2014 silent answers are impossible"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Providers",
+      "items": [
+        "llama-server: OpenAI-style /v1/embeddings, text-only by declaration",
+        "st-worker: sentence-transformers in .venv-st, text + images via the model-card format"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Discipline",
+      "items": [
+        "Eval-only: rows tagged sem1_raw until per-surface calibration floors exist",
+        "Batch-only: no hook path references this lane"
+      ]
+    }
+  ]
+}
