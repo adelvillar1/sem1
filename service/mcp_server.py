@@ -59,7 +59,8 @@ def main() -> None:
         sys.stdout.flush()
 
     def error(req_id, code, msg):
-        respond(req_id, {"error": {"code": code, "message": msg}})
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": msg}}) + "\n")
+        sys.stdout.flush()
 
     for line in sys.stdin:
         line = line.strip()
@@ -73,6 +74,16 @@ def main() -> None:
         req_id = req.get("id")
         method = req.get("method")
         params = req.get("params", {}) or {}
+
+        if req_id is None:
+            # JSON-RPC notification: never answered. Replying emits a frame
+            # with no pending requester (id null), which strict clients read
+            # as protocol garbage on the shared stdin stream.
+            continue
+        if method == "ping":
+            # MCP requires servers to answer pings with an empty result.
+            respond(req_id, {})
+            continue
 
         if method == "initialize":
             respond(req_id, {
@@ -352,9 +363,6 @@ def main() -> None:
                 continue
 
             error(req_id, -32601, f"Unknown tool: {tool_name}")
-        elif method == "initialized":
-            # Client notification; no response required.
-            pass
         else:
             error(req_id, -32601, f"Method not found: {method}")
 
