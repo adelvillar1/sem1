@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 
@@ -26,6 +27,16 @@ def _add_sem1_src_to_path() -> None:
     env_path = os.environ.get("SEM1_PYTHONPATH")
     if env_path:
         sys.path.insert(0, env_path)
+
+
+def _store_root(store: str):
+    """One VectorStore root per named corpus, namespaced under the default."""
+    from sem1.store import DEFAULT_ROOT, VectorStore
+
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", store).strip("-")
+    if not slug:
+        raise ValueError("`store` must be a non-empty name.")
+    return VectorStore(root=DEFAULT_ROOT / slug)
 
 
 def _normalize_items_argument(value):
@@ -139,6 +150,72 @@ def main() -> None:
                             },
                         },
                     },
+                    {
+                        "name": "sem1_index",
+                        "description": (
+                            "(Re)build a named vector store from texts: embeds "
+                            "the batch and rebuilds the store wholesale "
+                            "(idempotent by key dedup). Manifest entries carry "
+                            "the optional parallel `metas` objects (e.g. text "
+                            "snippets, source ids) so search can return them."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "store": {
+                                    "type": "string",
+                                    "description": "Corpus name, e.g. fleet-sessions.",
+                                },
+                                "texts": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "The texts to embed and index.",
+                                },
+                                "metas": {
+                                    "type": "array",
+                                    "description": "Optional objects parallel to texts; stored in manifest entries.",
+                                },
+                                "keys": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "Optional stable keys parallel to texts (default item-<i>).",
+                                },
+                                "provider": {"type": "string", "description": "Default: llama-server."},
+                                "model": {"type": "string", "description": "Optional model override."},
+                            },
+                            "required": ["store", "texts"],
+                        },
+                    },
+                    {
+                        "name": "sem1_search",
+                        "description": (
+                            "Top-k semantic search over a named store: embeds "
+                            "the query and returns scored manifest entries "
+                            "(key, score, and whatever meta was indexed). Vectors "
+                            "never leave the store."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "store": {
+                                    "type": "string",
+                                    "description": "Corpus name passed to sem1_index.",
+                                },
+                                "query": {
+                                    "type": "string",
+                                    "description": "The query text.",
+                                },
+                                "k": {
+                                    "type": "integer",
+                                    "description": "Neighbor count. Default: 5.",
+                                    "default": 5,
+                                },
+                                "provider": {"type": "string", "description": "Must match the indexing provider's model. Default: llama-server."},
+                                "model": {"type": "string", "description": "Must match the indexing model."},
+                            },
+                            "required": ["store", "query"],
+                        },
+                    },
                 ],
             })
         elif method == "tools/call":
@@ -183,6 +260,94 @@ def main() -> None:
                     continue
                 respond(req_id, {
                     "content": [{"type": "text", "text": json.dumps(report)}],
+                })
+                continue
+
+            if tool_name == "sem1_index":
+                from sem1.store import VectorStore  # noqa: E402
+                from sem1.telemetry import sha256  # noqa: E402
+
+                texts = arguments.get("texts")
+                if not isinstance(texts, list) or not texts or not all(isinstance(t, str) and t.strip() for t in texts):
+                    error(req_id, -32602, "`texts` must be a non-empty list of non-empty strings.")
+                    continue
+                metas = arguments.get("metas")
+                if metas is not None and (not isinstance(metas, list) or len(metas) != len(texts)):
+                    error(req_id, -32602, "`metas` must be a list parallel to `texts`.")
+                    continue
+                keys = arguments.get("keys")
+                if keys is not None and (not isinstance(keys, list) or len(keys) != len(texts)):
+                    error(req_id, -32602, "`keys` must be a list parallel to `texts`.")
+                    continue
+                try:
+                    store = _store_root(str(arguments["store"]))
+                    result = embed(texts, provider=str(provider), **({"model": str(model)} if model is not None else {}))
+                    manifest = store.rebuild(
+                        result.model,
+                        result.dims,
+                        result.provider,
+                        [(str(keys[i]) if keys else f"item-{i}", sha256(texts[i]), vec)
+                         for i, vec in enumerate(result.vectors)],
+                        meta=[dict(m) if isinstance(m, dict) else {} for m in (metas or [None] * len(texts))] or None,
+                    )
+                except ValueError as exc:
+                    error(req_id, -32602, str(exc))
+                    continue
+                except Exception as exc:  # pragma: no cover — transport boundary
+                    error(req_id, -32603, str(exc))
+                    continue
+                respond(req_id, {
+                    "content": [{"type": "text", "text": json.dumps({
+                        "store": str(arguments["store"]),
+                        "count": manifest["count"],
+                        "dims": manifest["dims"],
+                        "model": manifest["model"],
+                        "provider": manifest["provider"],
+                    })}],
+                })
+                continue
+
+            if tool_name == "sem1_search":
+                from sem1.similarity import top_k  # noqa: E402
+
+                query = arguments.get("query")
+                if not isinstance(query, str) or not query.strip():
+                    error(req_id, -32602, "`query` must be a non-empty string.")
+                    continue
+                try:
+                    store = _store_root(str(arguments["store"]))
+                    q = embed([query], provider=str(provider), **({"model": str(model)} if model is not None else {}))
+                    manifest, vectors = store.load(q.model)
+                    if manifest is None:
+                        respond(req_id, {
+                            "content": [{"type": "text", "text": json.dumps({
+                                "store": str(arguments["store"]),
+                                "matches": [],
+                                "count": 0,
+                                "note": "store is empty — run sem1_index first",
+                            })}],
+                        })
+                        continue
+                    hits = top_k(q.vectors[0], vectors, k=max(1, int(arguments.get("k", 5))))
+                    entries = manifest["entries"]
+                    matches = [
+                        {"key": entries[i].get("key"), "score": round(score, 4), **{
+                            kk: vv for kk, vv in entries[i].items() if kk not in ("key", "sha256")
+                        }}
+                        for i, score in hits
+                    ]
+                except ValueError as exc:
+                    error(req_id, -32602, str(exc))
+                    continue
+                except Exception as exc:  # pragma: no cover — transport boundary
+                    error(req_id, -32603, str(exc))
+                    continue
+                respond(req_id, {
+                    "content": [{"type": "text", "text": json.dumps({
+                        "store": str(arguments["store"]),
+                        "count": manifest["count"],
+                        "matches": matches,
+                    })}],
                 })
                 continue
 
