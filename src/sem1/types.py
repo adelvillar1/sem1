@@ -74,6 +74,11 @@ def normalize_items(items) -> list[dict]:
     st-worker provider's own extension, not part of the normalized contract.
     """
     out: list[dict] = []
+    # A bare string is ONE text item, not an iterable of characters — the
+    # docstring always promised str acceptance; iterating a str silently
+    # embedded one vector per character (48x the work, wrong counts).
+    if isinstance(items, str):
+        items = [items]
     for it in items:
         if isinstance(it, str):
             out.append({"text": it})

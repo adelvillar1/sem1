@@ -29,6 +29,11 @@ class TestNormalize(unittest.TestCase):
     def test_str_becomes_text_item(self):
         self.assertEqual(sem1.normalize_items(["a"]), [{"text": "a"}])
 
+    def test_bare_string_is_one_item_not_characters(self):
+        # regression: embed("hello") used to iterate the string into 5
+        # single-character items — 48x the server work, wrong counts.
+        self.assertEqual(sem1.normalize_items("hello"), [{"text": "hello"}])
+
     def test_rejects_empty_dict(self):
         with self.assertRaises(sem1.Sem1Error):
             sem1.normalize_items([{}])
